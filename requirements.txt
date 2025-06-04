@@ -9,3 +9,8 @@ Pillow
 PyMuPDF
 numpy
 python-docx
+redis
+motor
+pymongo
+PyJWT
+cryptography
