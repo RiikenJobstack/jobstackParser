@@ -14,5 +14,3 @@ motor
 pymongo
 PyJWT
 cryptography
-google-generativeai
-google-auth
