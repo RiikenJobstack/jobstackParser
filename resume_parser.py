@@ -262,11 +262,9 @@ def transform_text_to_resume_data(raw_text: str) -> dict:
         return cached_result
 
     prompt = f"""
-You are a resume parser. Extract structured resume data in the following JSON format.
+You are a resume parser. Extract resume data to this JSON structure:
 
-Expected JSON:
 {{
-  "id": null,
   "targetJobTitle": "",
   "targetJobDescription": "",
   "personalInfo": {{
@@ -280,66 +278,98 @@ Expected JSON:
   }},
   "sections": [
     {{
-      "id": "null",
+      "id": "experience-1",
       "type": "experience",
       "title": "Work Experience",
       "order": 0,
       "hidden": false,
-      "items": [
-        {{
-          "jobTitle": "",
-          "company": "",
-          "location": "",
-          "startDate": null,
-          "endDate": null,
-          "currentPosition": false,
-          "description": ""
-        }}
-      ],
+      "items": [{{
+        "id": "exp-0",
+        "jobTitle": "",
+        "company": "",
+        "location": "",
+        "startDate": "",
+        "endDate": null,
+        "currentPosition": false,
+        "description": ""
+      }}],
       "groups": [],
+      "content": "",
       "state": {{}}
     }},
     {{
-      "id": "null",
-      "type": "projects",
-      "title": "Projects",
-      "order": 1,
-      "hidden": false,
-      "items": [],
-      "groups": [],
-      "state": {{}}
-    }},
-    {{
-      "id": "null",
+      "id": "education-1",
       "type": "education",
       "title": "Education",
-      "order": 2,
+      "order": 1,
       "hidden": false,
-      "items": [],
+      "items": [{{
+        "id": "edu-0",
+        "degree": "",
+        "institution": "",
+        "location": "",
+        "startDate": "",
+        "endDate": "",
+        "current": false,
+        "gpa": "",
+        "description": ""
+      }}],
       "groups": [],
+      "content": "",
       "state": {{}}
     }},
     {{
-      "id": "null",
+      "id": "skills-1",
       "type": "skills",
       "title": "Skills",
-      "order": 3,
+      "order": 2,
+      "hidden": false,
       "format": "grouped",
       "items": [],
+      "groups": [{{
+        "id": "technical-skills",
+        "name": "Technical Skills",
+        "items": []
+      }}],
+      "content": "",
+      "state": {{"categoryOrder": [], "viewMode": "categorized"}}
+    }},
+    {{
+      "id": "projects-1",
+      "type": "projects",
+      "title": "Projects",
+      "order": 3,
+      "hidden": false,
+      "items": [{{
+        "id": "proj-0",
+        "name": "",
+        "description": "",
+        "technologies": [],
+        "url": "",
+        "startDate": "",
+        "endDate": "",
+        "current": false
+      }}],
       "groups": [],
-      "state": {{
-        "categoryOrder": [],
-        "viewMode": "categorized"
-      }},
-      "hidden": false
+      "content": "",
+      "state": {{}}
     }}
   ]
 }}
 
+RULES:
+Dates: YYYY-MM-DD format
+Current positions: endDate=null, currentPosition/current=true
+IDs: exp-0, edu-0, proj-0, cert-0, lang-0 etc.
+Skills: categorize into groups (technical, frameworks, tools, soft)
+Additional sections: Add any other sections (awards, volunteer, publications, etc.) as new section objects in sections array with appropriate id, type, title, order, hidden=false
+Bullet points: return as array of strings
+Paragraphs: return as single string inside array
+Missing data: empty strings/arrays, null for dates
+Return only valid JSON
+
 Resume Text:
-\"\"\"
 {raw_text}
-\"\"\"
 
 Return only valid JSON.
 """
