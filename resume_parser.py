@@ -13,20 +13,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Google credentials for Gemini API
-GOOGLE_APPLICATION_CREDENTIALS = {
-    "type": "service_account",
-    "project_id": "jobstack-ai-gemini-model",
-    "private_key_id": "f8e1df57d103eeb05e19b0fae195ec65d3966baf",
-    "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCahT91ZfNeeQUF\nXFeUo/dlnaOgu8Bpyk0b2JvEhtErj12X81UItQrZ7Ch7m3hrmSlZN16UdTQf7cU0\ndWG+KENXUNIZqI2ZgoNnnIXzG2woLGdDCoKAw1gZ/i+TQ9Fb1hsekoDPA4g/l9ox\nY0LWtrwkIlDcGdYx6x7UQ7/b8vbliyn1z/qwHp6XtwCAlXAZrJN1EWzltLti5/DW\nRUwgKR+m0OiSJEZyE5GieIEaIsJK46X1omLbwIPTa9fqHl8jrdI0Jpuwd6Xzscfm\n6LvIYxjrGqgEoyxyczs9aDfC18KePbNDXTBGf0TOPfH8MTAtPLwCK5FTQa2G5fpF\njq/Hb6pbAgMBAAECggEACJfQZ57yqvG7ZJs2CDYar2rV+PScj9fRYfMNP7HENvbK\nE2EvIWlm3/C+uLx0on4OlFHX9BUCyRF8i8G2ymIeQSllc26x6A+NbzR/cMa5DjUp\n8hPri7a/Cc5w8AMLMqg9fCJVAJvi0h1jLPCCfMLhVeWpgF0hv7TrnESaij+lT+Vh\nZ5lp++NdEZAP7omluHJeqbYvMnihi0kvrPRYZLKp3yhfk7lgfLzWNtM3qU59KMC2\njX/d6LZNH1mIiXNeRH4nuPEP+C38zOjK9Tl/pGt2csN1NGMVotLwAkUMlO+KcSwt\n80/j/GSnXSY/CBZT6NMUqyDm9nZHPzSllTWtp0trwQKBgQDZLYyAc+CJmS4/rPd5\n0yjHjO7+AzHZqxlT9RREtOPueNhDhEcd5IFiYjpTXk78A7IO1kcPjsVZ3liZOkkn\nBXivlzPPE739n/56mSg/SHI8If557+cz0yNNmcMEEfHN4xmaboMNSh4HlHOXFPSw\nzKHIWKe2ncVMHuc5VHLmEoYxtwKBgQC2JGIIHKO5dGuWnpqxVPVJ+XRpTLp4w1Xp\nHKJnhC6TEY5ywSIkB4mg58ItqCEHCKXMZAX+U/2QUEhlQCK0jjP0wji8Y7ZWZw4v\nBLV3v8hxVyUXxnHlGgOMI7tHOB1PT/05ihs1oU1OwoH5PoVtsigDHuN6BWTHnRrq\nUGhpL9G8fQKBgFyWkqPgwwVmjNUQxKDnaSdJ6knYytPlofKtNWrlQ5dTZb/DER6p\nYI+1GPCZ8Ep4uNyidcEoOPLLXDJXKwC70GvrpmbOH92U7EUQLpxsImeIhpktsf/i\nL9bRitadX91KyIuSOcTcqFjK7Uyn3nnRg9eKFFZChO6i7ij+281CcHuZAoGAVyo0\nK9Og2oiHUE5Yk1KoDB2wAxBwEIjSXTuR0N4l98WoGOyqLPnaeEFQ4M6b96TAy352\ni86gAucYrjOyKBwBazljM2y4fsLUu9WSDlueTfc5ThZuvQfk+LTE1AFbrXAHK/kW\nqmSl/XICB0hPTD68/TlT/ToFj610ivut6+Cxi3UCgYEAgPZkIvro8ymVfOFjigar\n8gS2bVGxpUvZ1pj7r1dRyzPDb1fJLpRkSfJUmXIsMxXZxGl8+jZvIbyb1NE0M4rf\n57UappJzgVYMrMIp6HszWMZMJuZCoO2dYCZ0LO1Io92rJ0g2FZODfwxjnBSGrrSd\nxAiBDeTvuPERp60yOWxv1/s=\n-----END PRIVATE KEY-----\n",
-    "client_email": "281729636176-compute@developer.gserviceaccount.com",
-    "client_id": "116449375511149164029",
-    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-    "token_uri": "https://oauth2.googleapis.com/token",
-    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-    "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/281729636176-compute%40developer.gserviceaccount.com",
-    "universe_domain": "googleapis.com",
-}
+google_credentials_str = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+google_credentials_dict = json.loads(google_credentials_str)
+
 
 # Initialize Google Generative AI client
 import google.generativeai as genai
@@ -36,7 +25,7 @@ import requests
 
 # Set up credentials with proper scopes
 credentials = service_account.Credentials.from_service_account_info(
-    GOOGLE_APPLICATION_CREDENTIALS,
+    google_credentials_dict,
     scopes=["https://www.googleapis.com/auth/cloud-platform"]
 )
 genai.configure(credentials=credentials)
