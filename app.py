@@ -15,7 +15,7 @@ origins = [
     "https://jobstackuidev-gwakgfdgbgh5emdw.canadacentral-01.azurewebsites.net",
     "https://jobtackui-fgcdftezgkhbbpbg.canadacentral-01.azurewebsites.net",
     "http://localhost:5173",
-    "https://jobtackui-fgcdftezgkhbbpbg.canadacentral-01.azurewebsites.net"
+    "https://jobstackuiuat-cybnbdf8h6gkb7g3.canadacentral-01.azurewebsites.net"
 ]
 
 app.add_middleware(
