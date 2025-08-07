@@ -20,98 +20,86 @@ class DatabaseConnection:
             cls._instance = super(DatabaseConnection, cls).__new__(cls)
         return cls._instance
 
+    def get_config(self) -> Dict[str, str]:
+        env = os.getenv("NODE_ENV", "development").lower()
+
+        config = {
+            "development": {
+                "uri": os.getenv("MONGO_DB_URL") or os.getenv("DATABASE_URL_DEV"),
+                "database": "jobstack"
+            },
+            "uat": {
+                "uri": os.getenv("MONGO_DB_URL_UAT"),
+                "database": "jobstack"
+            },
+            "production": {
+                "uri": os.getenv("MONGO_DB_URL_PROD"),
+                "database": "jobstack-prod"
+            }
+        }.get(env)
+
+        if not config or not config["uri"]:
+            raise ValueError(f"Missing DB config or URI for environment: {env}")
+
+        logger.info(f"🌐 Using environment: {env}")
+        logger.info(f"🗄️  Connecting to DB: {config['database']}")
+        return config
+
     async def initialize(self):
-        """Initialize MongoDB connection"""
         if self._client is None:
             try:
-                mongodb_url = os.getenv("MONGODB_URL")
-                if not mongodb_url:
-                    raise ValueError("MONGODB_URL environment variable is required")
-                
-                self._client = AsyncIOMotorClient(mongodb_url)
-                
-                # Test the connection
-                await self._client.admin.command('ping')
-                logger.info("Successfully connected to MongoDB")
-                
-                # Get database name from environment or use default
-                db_name = os.getenv("DATABASE_NAME", "your_database_name")
-                self._database = self._client[db_name]
-                
+                config = self.get_config()
+                self._client = AsyncIOMotorClient(config["uri"])
+                await self._client.admin.command("ping")
+                self._database = self._client[config["database"]]
+                logger.info("✅ MongoDB connected successfully")
             except Exception as e:
-                logger.error(f"Failed to connect to MongoDB: {e}")
+                logger.error(f"❌ MongoDB connection failed: {e}")
                 raise e
 
     async def get_database(self):
-        """Get database instance"""
         if self._database is None:
             await self.initialize()
         return self._database
 
     async def close(self):
-        """Close MongoDB connection"""
         if self._client:
             self._client.close()
+            logger.info("🔌 MongoDB connection closed")
             self._client = None
             self._database = None
-            logger.info("MongoDB connection closed")
 
-# Global database connection instance
+
 db_connection = DatabaseConnection()
 
 async def get_database():
-    """Get database instance"""
     return await db_connection.get_database()
 
-async def find_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
-    """
-    Find user by ID in MongoDB
-    
-    Args:
-        user_id (str): User ID to search for
-        
-    Returns:
-        Optional[Dict[str, Any]]: User document if found, None otherwise
-    """
-    try:
-        # Get database instance
-        db = await get_database()
-        print(f"Connecting to database: {db}")
-        collections = await db.list_collection_names()
-        print(f"Available collections: {collections}")
 
-        # Get users collection (change 'users' to your actual collection name if different)
-        # Common names: 'users', 'UserV2', 'user'
-        users_collection = db.usersv2 # or db.UserV2 if that's your collection name
-        
-        # Convert string ID to ObjectId
+async def find_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
+    try:
+        db = await get_database()
+        collection = db.get_collection("usersv2")
+
         try:
             object_id = ObjectId(user_id)
         except InvalidId:
-            logger.warning(f"Invalid ObjectId format: {user_id}")
+            logger.warning(f"⚠️ Invalid ObjectId: {user_id}")
             return None
-        
-        # Find user by _id
-        user = await users_collection.find_one({"_id": object_id})
-        
+
+        user = await collection.find_one({"_id": object_id})
         if user:
-            # Convert ObjectId to string for JSON serialization
             user["_id"] = str(user["_id"])
-            logger.info(f"User found: {user_id}")
             return user
-        else:
-            logger.info(f"User not found: {user_id}")
-            return None
-            
+        return None
     except Exception as e:
-        logger.error(f"Database error while finding user {user_id}: {e}")
+        logger.error(f"❌ Error finding user {user_id}: {e}")
         return None
 
-# Startup and shutdown event handlers for FastAPI
+
+# FastAPI lifecycle
 async def startup_database():
-    """Initialize database connection on startup"""
     await db_connection.initialize()
 
 async def shutdown_database():
-    """Close database connection on shutdown"""
     await db_connection.close()

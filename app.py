@@ -2,7 +2,7 @@ from fastapi import FastAPI, UploadFile, File, Request, HTTPException
 from dotenv import load_dotenv
 from token_service import verify_token
 from user_service import find_user_by_id
-import uvicorn
+import os
 from fastapi.middleware.cors import CORSMiddleware
 from resume_parser import parse_resume
 
@@ -10,17 +10,34 @@ from resume_parser import parse_resume
 load_dotenv()
 
 app = FastAPI()
+# CORS configuration
 
-origins = [
-    "https://jobstackuidev-gwakgfdgbgh5emdw.canadacentral-01.azurewebsites.net",
-    "https://jobtackui-fgcdftezgkhbbpbg.canadacentral-01.azurewebsites.net",
-    "http://localhost:5173",
-    "https://jobstackuiuat-cybnbdf8h6gkb7g3.canadacentral-01.azurewebsites.net"
-]
+def get_cors_origins():
+    NODE_ENV = os.getenv("NODE_ENV", "development")
+    print(f"NODE_ENV: {NODE_ENV}")
+
+    if NODE_ENV == "production":
+        return [
+            'https://app.jobstack.ai',
+            'https://jobstack.azurewebsites.net'
+        ]
+    elif NODE_ENV == "uat":
+        return [
+            'https://jobstackuiuat-cybnbdf8h6gkb7g3.canadacentral-01.azurewebsites.net',
+            'https://app-uat.jobstack.ai'
+        ]
+    else:  # default to development
+        return [
+            'http://localhost:3000',
+            'http://localhost:5173',
+            'http://localhost:3001',
+            'https://jobstackuidev-gwakgfdgbgh5emdw.canadacentral-01.azurewebsites.net'
+        ]
+
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,  # only allow these domains
+    allow_origins=get_cors_origins(),  # only allow these domains
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -37,7 +54,7 @@ async def upload_resume(request: Request, file: UploadFile = File(...)):
     origin = request.headers.get("origin")
     print(f"Origin: {origin}")
 
-    if not origin or origin not in origins:
+    if not origin or origin not in get_cors_origins():
         raise HTTPException(status_code=403, detail="Origin not allowed")
 
     # Check Authorization header
