@@ -354,10 +354,110 @@ You are a resume parser. Extract resume data to this JSON structure:
       "content": "",
       "state": {{}}
     }}
+     {{
+      "id": "awards-1",
+      "type": "awards",
+      "title": "AWARDS & ACHIEVEMENTS",
+      "order": 4,
+      "hidden": false,
+      "items": [{{
+        "id": "award-0",
+        "title": "",
+        "organization": "",
+        "date": "",
+        "description": ""
+      }}],
+      "groups": [],
+      "content": "",
+      "state": {{}}
+    }},
+    {{
+      "id": "certifications-1",
+      "type": "certifications",
+      "title": "CERTIFICATIONS",
+      "order": 5,
+      "hidden": false,
+      "items": [{{
+        "id": "cert-0",
+        "name": "",
+        "issuer": "",
+        "date": "",
+        "description": ""
+      }}],
+      "groups": [],
+      "content": "",
+      "state": {{}}
+    }},
+    {{
+      "id": "languages-1",
+      "type": "languages",
+      "title": "LANGUAGES",
+      "order": 6,
+      "hidden": false,
+      "items": [{{
+        "id": "lang-0",
+        "name": "",
+        "proficiency": ""
+      }}],
+      "groups": [],
+      "content": "",
+      "state": {{}}
+    }},
+    {{
+      "id": "volunteer-1",
+      "type": "volunteer",
+      "title": "VOLUNTEER EXPERIENCE",
+      "order": 7,
+      "hidden": false,
+      "items": [{{
+        "id": "vol-0",
+        "role": "",
+        "organization": "",
+        "location": "",
+        "startDate": "",
+        "endDate": "",
+        "description": ""
+      }}],
+      "groups": [],
+      "content": "",
+      "state": {{}}
+    }},
+    {{
+      "id": "key-achievements-1",
+      "type": "key-achievements",
+      "title": "KEY ACHIEVEMENTS",
+      "order": 8,
+      "hidden": false,
+      "items": [{{
+        "id": "achieve-0",
+        "name": "",
+        "description": ""
+      }}],
+      "groups": [],
+      "content": "",
+      "state": {{}}
+    }},
+    {{
+      "id": "interests-1",
+      "type": "interests",
+      "title": "INTERESTS",
+      "order": 9,
+      "hidden": false,
+      "items": [{{
+        "id": "int-0",
+        "category": "",
+        "items": "",
+        "description": ""
+      }}],
+      "groups": [],
+      "content": "",
+      "state": {{}}
+    }}
   ]
 }}
 
 RULES:
+DO NOT include sections with empty/no data
 Dates: YYYY-MM-DD format
 Current positions: endDate=null, currentPosition/current=true
 IDs: exp-0, edu-0, proj-0, cert-0, lang-0 etc.
