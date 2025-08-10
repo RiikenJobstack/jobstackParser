@@ -325,10 +325,10 @@ You are a resume parser. Extract resume data to this JSON structure:
       "order": 2,
       "hidden": false,
       "format": "grouped",
-      "items": [],
+      "items": ["string"], (all skills)
       "groups": [{{
-        "id": "technical-skills",
-        "name": "Technical Skills",
+        "id": "skill-0",
+        "name": "", (skill category)
         "items": []
       }}],
       "content": "",
