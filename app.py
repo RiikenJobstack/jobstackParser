@@ -33,7 +33,6 @@ def get_cors_origins():
             'http://localhost:5173',
             'https://app.jobstack.ai',
             'https://app-uat.jobstack.ai',
-            'https://jobstack.azurewebsites.net',
             'https://jobtackui-fgcdftezgkhbbpbg.canadacentral-01.azurewebsites.net',
             'https://jobstackuiuat-cybnbdf8h6gkb7g3.canadacentral-01.azurewebsites.net',
             'https://jobstackuidev-gwakgfdgbgh5emdw.canadacentral-01.azurewebsites.net'
