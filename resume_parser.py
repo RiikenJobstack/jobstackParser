@@ -274,6 +274,8 @@ You are a resume parser. Extract resume data to this JSON structure:
     "phone": "",
     "location": "",
     "summary": "",
+    "linkedinUrl": "",
+    "githubUrl": "",
     "profilePicture": null
   }},
   "sections": [
@@ -353,8 +355,8 @@ You are a resume parser. Extract resume data to this JSON structure:
       "groups": [],
       "content": "",
       "state": {{}}
-    }}
-     {{
+    }},
+    {{
       "id": "awards-1",
       "type": "awards",
       "title": "AWARDS & ACHIEVEMENTS",
@@ -462,6 +464,9 @@ Dates: YYYY-MM-DD format
 Current positions: endDate=null, currentPosition/current=true
 IDs: exp-0, edu-0, proj-0, cert-0, lang-0 etc.
 Skills: categorize into groups (technical, frameworks, tools, soft)
+URLs: Extract LinkedIn and GitHub URLs from resume text, social media sections, or contact info
+LinkedIn URL formats: linkedin.com/in/username, www.linkedin.com/in/username
+GitHub URL formats: github.com/username, www.github.com/username
 Additional sections: Add any other sections (awards, volunteer, publications, etc.) as new section objects in sections array with appropriate id, type, title, order, hidden=false
 Bullet points: return as array of strings
 Paragraphs: return as single string inside array

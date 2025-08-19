@@ -19,11 +19,13 @@ def get_cors_origins():
     if NODE_ENV == "production":
         return [
             'https://app.jobstack.ai',
+            'http://localhost:5173',
             'https://jobstack.azurewebsites.net',
             'https://jobtackui-fgcdftezgkhbbpbg.canadacentral-01.azurewebsites.net'
         ]
     elif NODE_ENV == "uat":
         return [
+            'http://localhost:5173',
             'https://jobstackuiuat-cybnbdf8h6gkb7g3.canadacentral-01.azurewebsites.net',
             'https://app-uat.jobstack.ai'
         ]
