@@ -226,9 +226,99 @@ def extract_text_from_pdf_with_ocr(content: bytes) -> str:
     return text
 
 def extract_text_from_docx(content: bytes) -> str:
-    """DOCX text extraction - same as original"""
+    """Enhanced DOCX text extraction that handles both paragraphs and tables"""
     doc = docx.Document(io.BytesIO(content))
-    return "\n".join([para.text for para in doc.paragraphs])
+    text_parts = []
+    
+    # Extract text from paragraphs
+    for para in doc.paragraphs:
+        if para.text.strip():  # Only add non-empty paragraphs
+            text_parts.append(para.text)
+    
+    # Extract text from tables
+    for table in doc.tables:
+        for row in table.rows:
+            row_text = []
+            for cell in row.cells:
+                # Get text from each cell, handling nested paragraphs
+                cell_text = []
+                for paragraph in cell.paragraphs:
+                    if paragraph.text.strip():
+                        cell_text.append(paragraph.text.strip())
+                
+                if cell_text:
+                    row_text.append(" ".join(cell_text))
+                else:
+                    row_text.append("")  # Empty cell
+            
+            # Join cells with tabs and add the row
+            if any(cell.strip() for cell in row_text):  # Only add non-empty rows
+                text_parts.append("\t".join(row_text))
+    
+    return "\n".join(text_parts)
+
+
+# Alternative version that preserves more table structure
+def extract_text_from_docx_structured(content: bytes) -> str:
+    """DOCX extraction that better preserves table structure"""
+    doc = docx.Document(io.BytesIO(content))
+    text_parts = []
+    
+    # Process document elements in order
+    for element in doc.element.body:
+        if element.tag.endswith('p'):  # Paragraph
+            # Find corresponding paragraph object
+            for para in doc.paragraphs:
+                if para._element == element and para.text.strip():
+                    text_parts.append(para.text)
+                    break
+                    
+        elif element.tag.endswith('tbl'):  # Table
+            # Find corresponding table object
+            for table in doc.tables:
+                if table._element == element:
+                    text_parts.append("\n--- TABLE START ---")
+                    
+                    for i, row in enumerate(table.rows):
+                        row_text = []
+                        for cell in row.cells:
+                            cell_content = []
+                            for paragraph in cell.paragraphs:
+                                if paragraph.text.strip():
+                                    cell_content.append(paragraph.text.strip())
+                            
+                            cell_text = " ".join(cell_content) if cell_content else ""
+                            row_text.append(cell_text)
+                        
+                        if any(cell.strip() for cell in row_text):
+                            text_parts.append(f"Row {i+1}: " + " | ".join(row_text))
+                    
+                    text_parts.append("--- TABLE END ---\n")
+                    break
+    
+    return "\n".join(text_parts)
+
+
+# Simplified version if you just want all text
+def extract_text_from_docx_simple(content: bytes) -> str:
+    """Simple DOCX extraction - gets all text from paragraphs and tables"""
+    doc = docx.Document(io.BytesIO(content))
+    
+    full_text = []
+    
+    # Get all text from paragraphs
+    for para in doc.paragraphs:
+        full_text.append(para.text)
+    
+    # Get all text from tables
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for paragraph in cell.paragraphs:
+                    full_text.append(paragraph.text)
+    
+    # Filter out empty lines and join
+    return "\n".join([text for text in full_text if text.strip()])
 
 def extract_text_from_image(content: bytes) -> str:
     """Image OCR with caching - same interface as original"""
