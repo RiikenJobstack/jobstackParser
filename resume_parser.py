@@ -183,6 +183,8 @@ def extract_text_from_resume(filename: str, content: bytes) -> str:
         text = extract_text_from_docx(content)
     elif ext in [".png", ".jpg", ".jpeg"]:
         text = extract_text_from_image(content)
+    elif ext in [".txt"]:
+        text = extract_text_from_txt(content)
     else:
         return "Unsupported file format."
 
@@ -367,6 +369,17 @@ def extract_text_from_image(content: bytes) -> str:
     # Cache the result
     _set_cache(cache_key, text)
     return text
+
+def extract_text_from_txt(content: bytes) -> str:
+    """Extract text from a TXT file (UTF-8 with fallback)"""
+    try:
+        # Try decoding as UTF-8 first
+        text = content.decode("utf-8")
+    except UnicodeDecodeError:
+        # Fallback to latin1 if UTF-8 fails
+        text = content.decode("latin1")
+
+    return text.strip()
 
 def transform_text_to_resume_data(raw_text: str) -> dict:
     """Transform text to structured data with Gemini API caching - same interface"""
@@ -690,7 +703,7 @@ Return a JSON object with this exact structure:
       ],
       "projects": [
         {{
-          "name": "",
+          "title": "",
           "role": "",
           "type": "personal",
           "client": "",
@@ -764,8 +777,7 @@ Return a JSON object with this exact structure:
           "current": false,
           "description": "",
           "impact": "",
-          "skills": [],
-          "hours": null
+          "hoursPerWeek": null
         }}
       ],
       "publications": [
@@ -860,7 +872,7 @@ PARSING RULES:
    - fullName: Complete name as found in resume
    - title: Professional title or role they're targeting (e.g., "Senior Software Engineer")
    - email: Email address (validate format)
-   - phone: Phone number with country code if available
+   - phone: Phone number with country code if available and remove any special characters other than number like '-','*' etc. EX - if phone is +91-8709910113 then give only +918709910113
    - location: "City, State" or "City, Country" format
    - linkedIn: LinkedIn URL without https:// (e.g., "linkedin.com/in/username")
    - portfolio: Portfolio/personal website URL without https://
@@ -871,7 +883,7 @@ PARSING RULES:
    - Resume may contain links in format: [LINK] https://example.com or [LINK] mailto:email@example.com
    - Map [LINK] entries correctly:
      * [LINK] mailto:xxx → extract email address (remove mailto:)
-     * [LINK] tel:xxx → extract phone number (remove tel:)
+     * [LINK] tel:xxx → extract phone number (remove tel:) and remove any special characters other than number like '-','*' etc. EX - if phone is +91-8709910113 then give only +918709910113
      * [LINK] containing linkedin.com → linkedIn field (remove https://)
      * [LINK] containing github.com → github field (remove https://)
      * Other [LINK] URLs → Check if mentioned near a project name, then add to that project's url field
@@ -993,7 +1005,35 @@ PARSING RULES:
    - journal: Journal name if applicable
 
 8. SECTIONS TO DETECT:
-   - Only include sections that actually have content
+   - Only include sections that actually have content.
+        IMPORTANT: Only include sections in the output that contain actual data. Do NOT include
+        empty sections.
+        - If a section has no data (empty array or null values), completely OMIT that section
+        from the response
+        - Examples:
+          * If no languages found → DO NOT include "languages" key at all
+          * If no publications → DO NOT include "publications" key
+          * If no volunteering → DO NOT include "volunteering" key
+          * If no awards → DO NOT include "awards" key
+          * If no certifications → DO NOT include "certifications" key
+
+        Good example:
+        {{
+          "personalInfo": {...},
+          "experience": [...],
+          "skills": {...}
+          // No empty sections included
+        }}
+
+        Bad example:
+        {{
+          "personalInfo": {...},
+          "experience": [...],
+          "skills": {...},
+          "languages": [],  // ❌ Don't include empty arrays
+          "awards": [],      // ❌ Don't include if no data
+          "publications": [] // ❌ Omit completely
+        }}
    - Don't create empty sections
    - Common section variations to recognize:
      * Work/Professional Experience → experience
@@ -1241,7 +1281,11 @@ def parse_resume_temp(filename: str, content: bytes) -> dict:
         return cached_result
 
     # Process normally with individual step caching
-    raw_text = extract_text_from_resume(filename, content)
+    raw_text = None
+    if filename is 'resume.txt':
+        raw_text = content
+    else:
+        raw_text = extract_text_from_resume(filename, content)
     structured_data = transform_text_to_resume_data_temp(raw_text)
 
     # Cache the complete result

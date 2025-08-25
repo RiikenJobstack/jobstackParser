@@ -1,4 +1,5 @@
-from fastapi import FastAPI, UploadFile, File, Request, HTTPException
+from fastapi import FastAPI, UploadFile, File, Request, HTTPException, Form
+from typing import Optional
 from dotenv import load_dotenv
 from token_service import verify_token
 from user_service import find_user_by_id
@@ -127,7 +128,12 @@ async def upload_resume(request: Request, file: UploadFile = File(...)):
 
 
 @app.post("/temp/parse-resume")
-async def upload_resume(request: Request, file: UploadFile = File(...)):
+async def upload_resume(
+    request: Request,
+    fileType: str = Form(...),          # either "file" or "text"
+    file: Optional[UploadFile] = File(None),  
+    text: Optional[str] = Form(None)  
+):
     # Check origin
     origin = request.headers.get("origin")
     print(f"Origin: {origin}")
@@ -187,10 +193,22 @@ async def upload_resume(request: Request, file: UploadFile = File(...)):
             detail={"error": "User does not exist", "status": 401}
         )
 
-    # Process the resume if all checks pass
-    content = await file.read()
-    parsed_data = parse_resume_temp(file.filename, content)
-    
+    # Process resume based on fileType
+    parsed_data = None
+    if fileType == "file":
+        if not file:
+            raise HTTPException(status_code=400, detail="File not provided")
+        content = await file.read()
+        parsed_data = parse_resume_temp(file.filename, content)
+
+    elif fileType == "text":
+        if not text or not text.strip():
+            raise HTTPException(status_code=400, detail="Text not provided")
+        parsed_data = parse_resume_temp("resume.txt", text.encode("utf-8"))
+
+    else:
+        raise HTTPException(status_code=400, detail="Invalid fileType. Must be 'file' or 'text'.")
+
     return {
         "resumeData": parsed_data,
         "userId": user.get("_id") if isinstance(user, dict) else user.id
