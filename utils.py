@@ -10,7 +10,22 @@ import pickle
 from functools import lru_cache
 from typing import Optional, Any
 from dotenv import load_dotenv
-from credentials import GOOGLE_APPLICATION_CREDENTIALS
+import time
+import threading
+import json
+import re
+from typing import Optional, Dict, Any
+import requests
+import google.auth
+import google.auth.transport.requests
+# Import static prompts
+from static_prompt import STATIC_RESUME_PARSER_PROMPT
+# Cache utility functions - add these to your file
+
+import hashlib
+import pickle
+from typing import Optional, Any
+import os
 # from resumeUtils import count_tokens, calculate_total_cost
 
 load_dotenv()
@@ -20,6 +35,35 @@ import google.generativeai as genai
 from google.oauth2 import service_account
 import google.auth.transport.requests
 import requests
+
+def get_google_credentials():
+    """Get Google credentials from Secret Manager environment variable"""
+    
+    # Get the credentials from the environment variable exposed by Secret Manager
+    google_creds = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')  # Use the exact name from your config
+    
+    if google_creds:
+        try:
+            print("Using credentials from Secret Manager")
+            # Parse the JSON credentials
+            cred_info = json.loads(google_creds)
+            return cred_info
+        except json.JSONDecodeError as e:
+            print(f"Failed to parse credentials JSON: {e}")
+        except Exception as e:
+            print(f"Failed to create credentials: {e}")
+    
+    # Fallback to default credentials
+    try:
+        print("Falling back to default credentials")
+        credentials, project = google.auth.default(
+            scopes=["https://www.googleapis.com/auth/cloud-platform"]
+        )
+        return credentials
+    except Exception as e:
+        print(f"Default credentials failed: {e}")
+# Initialize credentials at module level
+GOOGLE_APPLICATION_CREDENTIALS = get_google_credentials()
 
 # Set up credentials with proper scopes
 credentials = service_account.Credentials.from_service_account_info(
@@ -1199,10 +1243,7 @@ Resume Text to Parse:
     try:
         # Use direct API call (same as your Node.js code)
         print("Calling Gemini API directly...")
-        input_tokens = 1
         content = call_gemini_api_direct(prompt)
-        output_tokens = 1
-        total_cost = 1
 
         # Debug: Log the response content for troubleshooting
         print(f"Gemini API Response Length: {len(content)}")
@@ -1310,27 +1351,6 @@ def clear_cache():
         except Exception:
             pass
 
-
-import time
-import threading
-import json
-import re
-from typing import Optional, Dict, Any
-import requests
-import google.auth
-import google.auth.transport.requests
-
-# Import static prompts
-from static_prompt import STATIC_RESUME_PARSER_PROMPT
-from dotenv import load_dotenv
-
-# Cache utility functions - add these to your file
-
-import hashlib
-import pickle
-from typing import Optional, Any
-import os
-
 # Initialize Redis client (optional - graceful fallback if not available)
 redis_client = None
 try:
@@ -1419,13 +1439,6 @@ def clear_cache():
         except Exception:
             pass
 
-load_dotenv()
-
-# Initialize Google Generative AI client
-import google.generativeai as genai
-from google.oauth2 import service_account
-import google.auth.transport.requests
-import requests
 
 # Set up credentials with proper scopes
 credentials = service_account.Credentials.from_service_account_info(
@@ -1608,77 +1621,6 @@ def call_gemini_with_cache_and_retry(dynamic_prompt: str, model: str, max_retrie
                 continue
             raise err
 
-# def parse_gemini_response(content: str) -> Dict[str, Any]:
-#     """Parse Gemini response with multiple fallback strategies"""
-#     if not content or not isinstance(content, str):
-#         raise ValueError("Invalid content provided")
-
-#     print(f"Parsing content (length: {len(content)})")
-
-#     # Strategy 1: Try direct JSON parse
-#     try:
-#         result = json.loads(content.strip())
-#         print("Strategy 1: Direct parse successful")
-#         return result
-#     except json.JSONDecodeError as e:
-#         print(f"Strategy 1 failed: {str(e)}")
-
-#     # Strategy 2: Extract from code blocks  
-#     print("Strategy 2: Trying code block extraction...")
-#     code_block_patterns = [
-#         r'```json\s*([\s\S]*?)\s*```',
-#         r'```\s*([\s\S]*?)\s*```',
-#         r'`\s*(\{[\s\S]*?\})\s*`'
-#     ]
-
-#     for i, pattern in enumerate(code_block_patterns):
-#         matches = re.findall(pattern, content, re.IGNORECASE | re.DOTALL)
-#         if matches:
-#             print(f"Found {len(matches)} matches for pattern {i+1}")
-#             for j, match in enumerate(matches):
-#                 try:
-#                     cleaned = match.strip()
-#                     result = json.loads(cleaned)
-#                     print("Strategy 2: Code block extraction successful")
-#                     return result
-#                 except json.JSONDecodeError:
-#                     continue
-
-#     # Strategy 3: Find JSON-like content
-#     print("Strategy 3: Trying JSON pattern extraction...")
-#     json_pattern = r'\{[\s\S]*\}'
-#     json_match = re.search(json_pattern, content, re.DOTALL)
-#     if json_match:
-#         try:
-#             json_content = json_match.group(0)
-#             result = json.loads(json_content)
-#             print("Strategy 3: JSON pattern extraction successful")
-#             return result
-#         except json.JSONDecodeError as e:
-#             print(f"Strategy 3 failed: {str(e)}")
-
-#     # Strategy 4: Try to fix common JSON issues
-#     print("Strategy 4: Trying to fix common JSON issues...")
-#     try:
-#         fixed_content = content
-#         # Remove trailing commas
-#         fixed_content = re.sub(r',(\s*[}\]])', r'\1', fixed_content)
-#         # Quote unquoted keys
-#         fixed_content = re.sub(r'([{,]\s*)(\w+):', r'\1"\2":', fixed_content)
-#         # Replace single quotes with double quotes
-#         fixed_content = re.sub(r":\s*'([^']*)'", r': "\1"', fixed_content)
-#         fixed_content = fixed_content.strip()
-        
-#         result = json.loads(fixed_content)
-#         print("Strategy 4: JSON fixing successful")
-#         return result
-#     except json.JSONDecodeError as e:
-#         print(f"Strategy 4 failed: {str(e)}")
-
-#     # If all strategies fail, throw an error
-#     content_preview = content[:500] if len(content) > 500 else content
-#     print("All strategies failed")
-#     raise ValueError(f"Failed to parse JSON after all strategies. Content preview: {content_preview}...")
 
 def parse_gemini_response(content: str) -> Dict[str, Any]:
     """
@@ -1961,11 +1903,7 @@ def transform_text_to_resume_data_cached(raw_text: str) -> dict:
     cached_result = _get_from_cache(cache_key)
     if cached_result is not None:
         print("Using cached result")
-        return {
-            "success": True,
-            "data": cached_result,
-            "debug": {"cache_hit": True}
-        }
+        return cached_result
         
     try:
         # Use cached API call
@@ -1974,46 +1912,38 @@ def transform_text_to_resume_data_cached(raw_text: str) -> dict:
         
         # Extract the actual content from the response
         content = api_response.get("analysis_content")
+        print(f"Received content of length: {content}")
         debug_info = api_response.get("debug_info", {})
 
         # Log debug information
         print(f"API Stats: {debug_info}")
 
         if not content:
-            print("Empty response from API")
-            return {
-                "success": False,
-                "error": "Gemini API returned empty content",
-                "debug": debug_info
-            }
+            error_result = {"error": "Gemini API returned empty content"}
+            return error_result
 
+        # Try to parse JSON from the response
         try:
-            print("Parsing JSON response...")
-            parsed_result = parse_gemini_response(content)
-            result = extract_resume_data_from_response(parsed_result)
-            print("Successfully parsed JSON response")
-            
-            if isinstance(result, dict):
-                print(f"Final result has {len(result)} top-level keys")
+            # First try to extract JSON from code blocks (like your Node.js code)
+            import re
+            json_match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', content)
+            if json_match:
+                print("Found JSON in code block format")
+                result = json.loads(json_match.group(1))
+            else:
+                print("Attempting to parse entire response as JSON")
+                result = json.loads(content)
 
             # Cache successful result
             _set_cache(cache_key, result)
-            print("Result cached successfully")
-            
-            return {
-                "success": True,
-                "data": result,
-                "debug": debug_info
-            }
+            return result
 
-        except ValueError as e:
+        except json.JSONDecodeError as e:
             print(f"JSON Parse Error: {str(e)}")
-            return {
-                "success": False,
-                "error": f"Failed to parse JSON response: {str(e)}",
-                "raw_content": content[:1000],
-                "debug": debug_info
-            }
+            print(f"Content that failed to parse: {content[:500]}...")
+            error_result = {"error": f"Failed to parse JSON response: {str(e)}"}
+            # Don't cache JSON parsing errors
+            return error_result
 
     except Exception as e:
         print(f"Gemini API Exception: {str(e)}")
@@ -2033,11 +1963,7 @@ def parse_resume_cached(filename: str, content: bytes) -> dict:
     cached_result = _get_from_cache(cache_key)
     if cached_result is not None:
         print("Using cached complete parsing result")
-        return {
-            "success": True,
-            "data": cached_result,
-            "debug": {"cache_hit": True, "stage": "full_parse"}
-        }
+        return cached_result
 
     # Process text extraction (with its own caching)
     if filename == 'resume.txt':
@@ -2046,24 +1972,9 @@ def parse_resume_cached(filename: str, content: bytes) -> dict:
         raw_text = extract_text_from_resume(filename, content)
     
     # Use cached API call for structured data transformation
-    transform_result = transform_text_to_resume_data_cached(raw_text)
-
-    if not transform_result.get("success"):
-        # propagate failure but still include debug info
-        return {
-            "success": False,
-            "error": transform_result.get("error", "Unknown error"),
-            "raw_content": transform_result.get("raw_content"),
-            "debug": {**transform_result.get("debug", {}), "stage": "transform"}
-        }
-
-    structured_data = transform_result["data"]
+    structured_data = transform_text_to_resume_data_cached(raw_text)
 
     # Cache the complete result
     _set_cache(cache_key, structured_data)
-    return {
-        "success": True,
-        "data": structured_data,
-        "debug": {**transform_result.get("debug", {}), "stage": "full_parse"}
-    }
+    return structured_data
 
