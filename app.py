@@ -202,19 +202,18 @@ async def upload_resume(
         if not file:
             raise HTTPException(status_code=400, detail="File not provided")
         content = await file.read()
-        parsed_data = parse_resume_temp(file.filename, content)['structured_data']
+        parsed_data = parse_resume_temp(file.filename, content)
 
     elif fileType == "text":
         if not text or not text.strip():
             raise HTTPException(status_code=400, detail="Text not provided")
-        parsed_data = parse_resume_temp("resume.txt", text.encode("utf-8"))['structured_data']
+        parsed_data = parse_resume_temp("resume.txt", text.encode("utf-8"))
 
     else:
         raise HTTPException(status_code=400, detail="Invalid fileType. Must be 'file' or 'text'.")
 
     return {
         "resumeData": parsed_data,
-        "debug":parse_resume_temp(file.filename, content)['debug'],
         "userId": user.get("_id") if isinstance(user, dict) else user.id
     }
 
