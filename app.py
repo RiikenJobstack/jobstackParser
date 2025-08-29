@@ -316,44 +316,14 @@ async def upload_resume_cached(
             performance_info["cache_time_left_minutes"] = max(round((resume_cache_expiry - now) / 60000), 0)
 
         return {
-            "success": parsed_result.get("success", False),
-            "resumeData": parsed_result.get("data"),
-            "error": parsed_result.get("error"),
-            "debug": parsed_result.get("debug", {}),
-            "userId": user.get("_id") if isinstance(user, dict) else user.id,
-            "performance": performance_info
+            "resumeData": parsed_result
         }
-
-    except Exception as e:
-        processing_time = time.time() - start_time
-        print(f"Error processing resume: {str(e)}")
-        
-        # Return error with fallback to original parsing method
-        try:
-            print("Attempting fallback to non-cached parsing...")
-            if fileType == "file":
-                content = await file.read()
-                parsed_data = parse_resume_temp(file.filename, content)
-            elif fileType == "text":
-                parsed_data = parse_resume_temp("resume.txt", text.encode("utf-8"))
-                
-            return {
-                "success": True,
-                "resumeData": parsed_data,
-                "userId": user.get("_id") if isinstance(user, dict) else user.id,
-                "performance": {
-                    "processing_time": round(time.time() - start_time, 3),
-                    "cache_used": False,
-                    "fallback_used": True,
-                    "error": "Cached parsing failed, used fallback method"
-                }
-            }
-        except Exception as fallback_error:
+    
+    except Exception as fallback_error:
             raise HTTPException(
                 status_code=500, 
                 detail={
                     "error": "Resume parsing failed", 
-                    "original_error": str(e),
                     "fallback_error": str(fallback_error),
                     "processing_time": round(time.time() - start_time, 3)
                 }
