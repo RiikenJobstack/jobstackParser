@@ -35,36 +35,8 @@ import google.generativeai as genai
 from google.oauth2 import service_account
 import google.auth.transport.requests
 import requests
-
-def get_google_credentials():
-    """Get Google credentials from Secret Manager environment variable"""
-    
-    # Get the credentials from the environment variable exposed by Secret Manager
-    google_creds = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')  # Use the exact name from your config
-    
-    if google_creds:
-        try:
-            print("Using credentials from Secret Manager")
-            # Parse the JSON credentials
-            cred_info = json.loads(google_creds)
-            return cred_info
-        except json.JSONDecodeError as e:
-            print(f"Failed to parse credentials JSON: {e}")
-        except Exception as e:
-            print(f"Failed to create credentials: {e}")
-    
-    # Fallback to default credentials
-    try:
-        print("Falling back to default credentials")
-        credentials, project = google.auth.default(
-            scopes=["https://www.googleapis.com/auth/cloud-platform"]
-        )
-        return credentials
-    except Exception as e:
-        print(f"Default credentials failed: {e}")
 # Initialize credentials at module level
-GOOGLE_APPLICATION_CREDENTIALS = get_google_credentials()
-
+GOOGLE_APPLICATION_CREDENTIALS  = os.environ.get("google-app-credentials")
 # Set up credentials with proper scopes
 credentials = service_account.Credentials.from_service_account_info(
     GOOGLE_APPLICATION_CREDENTIALS,
