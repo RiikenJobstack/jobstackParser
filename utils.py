@@ -36,12 +36,22 @@ from google.oauth2 import service_account
 import google.auth.transport.requests
 import requests
 # Initialize credentials at module level
-GOOGLE_APPLICATION_CREDENTIALS  = os.environ.get("google-app-credentials")
 # Set up credentials with proper scopes
+google_app_credentials = os.getenv("google-app-credentials")
+
+if not google_app_credentials:
+    raise ValueError("Missing google-app-credentials secret")
+
+# Parse the JSON string into a dict
+GOOGLE_APPLICATION_CREDENTIALS = json.loads(google_app_credentials)
+
+# Create credentials object
 credentials = service_account.Credentials.from_service_account_info(
     GOOGLE_APPLICATION_CREDENTIALS,
     scopes=["https://www.googleapis.com/auth/cloud-platform"]
 )
+
+# Configure genai with credentials
 genai.configure(credentials=credentials)
 
 # Initialize Gemini model
@@ -1411,12 +1421,6 @@ def clear_cache():
         except Exception:
             pass
 
-
-# Set up credentials with proper scopes
-credentials = service_account.Credentials.from_service_account_info(
-    GOOGLE_APPLICATION_CREDENTIALS,
-    scopes=["https://www.googleapis.com/auth/cloud-platform"]
-)
 
 # Global cache variables for prompt caching
 resume_cache_id = None
