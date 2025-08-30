@@ -197,23 +197,24 @@ async def upload_resume(
         )
 
     # Process resume based on fileType
-    parsed_data = None
+    parsed_result = None
     if fileType == "file":
         if not file:
             raise HTTPException(status_code=400, detail="File not provided")
         content = await file.read()
-        parsed_data = parse_resume_temp(file.filename, content)
+        parsed_result = parse_resume_temp(file.filename, content)
 
     elif fileType == "text":
         if not text or not text.strip():
             raise HTTPException(status_code=400, detail="Text not provided")
-        parsed_data = parse_resume_temp("resume.txt", text.encode("utf-8"))
+        parsed_result = parse_resume_temp("resume.txt", text.encode("utf-8"))
 
     else:
         raise HTTPException(status_code=400, detail="Invalid fileType. Must be 'file' or 'text'.")
 
     return {
-        "resumeData": parsed_data,
+        "resumeData": parsed_result["structured_data"]["data"],  # structured JSON
+        "debug": parsed_result["structured_data"]["debug"],                 # debug info
         "userId": user.get("_id") if isinstance(user, dict) else user.id
     }
 
@@ -315,19 +316,22 @@ async def upload_resume_cached(
             now = time.time() * 1000
             performance_info["cache_time_left_minutes"] = max(round((resume_cache_expiry - now) / 60000), 0)
 
+        # Expose both structured data and debug info
         return {
-            "resumeData": parsed_result
+            "resumeData": parsed_result.get("data"),
+            "debug": parsed_result.get("debug")
         }
     
     except Exception as fallback_error:
-            raise HTTPException(
-                status_code=500, 
-                detail={
-                    "error": "Resume parsing failed", 
-                    "fallback_error": str(fallback_error),
-                    "processing_time": round(time.time() - start_time, 3)
-                }
-            )
+        raise HTTPException(
+            status_code=500, 
+            detail={
+                "error": "Resume parsing failed", 
+                "fallback_error": str(fallback_error),
+                "processing_time": round(time.time() - start_time, 3)
+            }
+        )
+
 
 # Optional: Cache management endpoint for monitoring
 @app.get("/cached/cache-status")
