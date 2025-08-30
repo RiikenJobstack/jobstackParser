@@ -1,4 +1,4 @@
-{
+GOOGLE_APPLICATION_CREDENTIALS = {
   "type": "service_account",
   "project_id": "jobstack-gemini-ai-api",
   "private_key_id": "0a5dc6124b9fdb3a4d8ef4265a266fc3ba99e3c8",
