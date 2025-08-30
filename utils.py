@@ -625,8 +625,10 @@ Return only valid JSON.
     try:
         # Use direct API call (same as your Node.js code)
         print("Calling Gemini API directly...")
+        input_tokens = count_tokens(prompt, "gemini-2.5-flash-lite")
         content = call_gemini_api_direct(prompt)
-
+        output_tokens = count_tokens(content, "gemini-2.5-flash-lite")
+        total_cost = calculate_total_cost(input_tokens, output_tokens, "gemini-2.5-flash-lite")
         # Debug: Log the response content for troubleshooting
         print(f"Gemini API Response Length: {len(content)}")
         print(f"Gemini API Response Preview: {content[:200]}...")
@@ -670,10 +672,22 @@ def transform_text_to_resume_data_temp(raw_text: str) -> dict:
     # Check cache first
     text_hash = _get_text_hash(raw_text)
     cache_key = f"gemini_transform:{text_hash}"
+    debug = {
+        "cache_hit": False,
+        "parse_method": None,
+        "text_hash": text_hash,
+        "input_length": len(raw_text),
+        "api_debug": {}
+    }
 
     cached_result = _get_from_cache(cache_key)
     if cached_result is not None:
-        return cached_result
+        debug["cache_hit"] = True
+        return {
+            "success": True,
+            "data": cached_result,
+            "debug": debug
+        }
 
     prompt = f"""
 You are an expert resume parser. Extract ONLY the content from the resume text below.
@@ -1225,15 +1239,28 @@ Resume Text to Parse:
     try:
         # Use direct API call (same as your Node.js code)
         print("Calling Gemini API directly...")
+        input_tokens = count_tokens(prompt, "gemini-2.5-flash-lite")
         content = call_gemini_api_direct(prompt)
+        output_tokens = count_tokens(content, "gemini-2.5-flash-lite")
+        total_cost = calculate_total_cost(input_tokens, output_tokens)
+        debug["api_debug"] = {
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "total_cost": total_cost,
+            "response_length": len(content) if content else 0,
+            "response_preview": content[:200] if content else None
+        }
 
         # Debug: Log the response content for troubleshooting
         print(f"Gemini API Response Length: {len(content)}")
         print(f"Gemini API Response Preview: {content[:200]}...")
 
         if not content:
-            error_result = {"error": "Gemini API returned empty content"}
-            return error_result
+            return {
+                "success": False,
+                "error": "Gemini API returned empty content",
+                "debug": debug
+            }
 
         # Try to parse JSON from the response
         try:
@@ -1243,30 +1270,43 @@ Resume Text to Parse:
             if json_match:
                 print("Found JSON in code block format")
                 result = json.loads(json_match.group(1))
+                debug["parse_method"] = "code_block"
             else:
                 print("Attempting to parse entire response as JSON")
                 result = json.loads(content)
+                debug["parse_method"] = "direct_parse"
 
             # Cache successful result
             _set_cache(cache_key, result)
-            return result
+            return {
+                "success": True,
+                "data": result,
+                "debug": debug
+            }
 
         except json.JSONDecodeError as e:
             print(f"JSON Parse Error: {str(e)}")
             print(f"Content that failed to parse: {content[:500]}...")
-            error_result = {"error": f"Failed to parse JSON response: {str(e)}"}
-            # Don't cache JSON parsing errors
-            return error_result
+            debug["parse_error"] = str(e)
+            debug["content_snippet"] = content[:500]
+            return {
+                "success": False,
+                "error": f"Failed to parse JSON response: {str(e)}",
+                "debug": debug
+            }
 
     except Exception as e:
         print(f"Gemini API Exception: {str(e)}")
-        error_result = {"error": f"Gemini API error: {str(e)}"}
-        # Don't cache errors
-        return error_result
+        return {
+            "success": False,
+            "error": f"Gemini API error: {str(e)}",
+            "error_type": type(e).__name__,
+            "debug": debug
+        }
 
 
 def parse_resume(filename: str, content: bytes) -> dict:
-    """Main parsing function with full pipeline caching - same interface as original"""
+    """Main parsing function with full pipeline caching - returns both debug and structured data"""
     # Check for complete cached result first
     file_hash = _get_file_hash(content)
     cache_key = f"full_parse:{file_hash}"
@@ -1275,13 +1315,25 @@ def parse_resume(filename: str, content: bytes) -> dict:
     if cached_result is not None:
         return cached_result
 
-    # Process normally with individual step caching
+    # Step 1: Extract raw text
     raw_text = extract_text_from_resume(filename, content)
+
+    # Step 2: Transform into structured resume data
     structured_data = transform_text_to_resume_data(raw_text)
 
-    # Cache the complete result
-    _set_cache(cache_key, structured_data)
-    return structured_data
+    # Step 3: Build final result with both debug + structured
+    result = {
+        "debug": {
+            "file_name": filename,
+            "file_hash": file_hash,
+            "raw_text_preview": raw_text[:1000],  # store a preview for debugging
+        },
+        "structured_data": structured_data,
+    }
+
+    # Step 4: Cache the complete result
+    _set_cache(cache_key, result)
+    return result
 
 def parse_resume_temp(filename: str, content: bytes) -> dict:
     """Main parsing function with full pipeline caching - same interface as original"""
@@ -1301,8 +1353,18 @@ def parse_resume_temp(filename: str, content: bytes) -> dict:
         raw_text = extract_text_from_resume(filename, content)
     structured_data = transform_text_to_resume_data_temp(raw_text)
     # Cache the complete result
-    _set_cache(cache_key, structured_data)
-    return structured_data
+    result = {
+        "debug": {
+            "file_name": filename,
+            "file_hash": file_hash,
+            "raw_text_preview": raw_text[:1000],  # store a preview for debugging
+        },
+        "structured_data": structured_data,
+    }
+
+    # Step 4: Cache the complete result
+    _set_cache(cache_key, result)
+    return result
 
 # Optional: Cache management functions for monitoring
 def get_cache_stats():
@@ -1872,54 +1934,75 @@ def transform_text_to_resume_data_cached(raw_text: str) -> dict:
     """Transform text to structured data with Gemini API prompt caching"""
     print(f'Processing raw_text of length: {len(raw_text)}')
     
-    # Check regular cache first (for text extraction results)
     text_hash = _get_text_hash(raw_text)
     cache_key = f"gemini_transform_cached:{text_hash}"
 
     cached_result = _get_from_cache(cache_key)
     if cached_result is not None:
         print("Using cached result")
-        return cached_result
+        return {
+            "success": True,
+            "data": cached_result,
+            "debug": {
+                "cache_hit": True,
+                "source": "redis_cache"
+            }
+        }
         
     try:
-        # Use cached API call
         print("Calling Gemini API with prompt caching...")
         api_response = call_gemini_api_cached(raw_text)
         
-        # Extract the actual content from the response
         content = api_response.get("analysis_content")
-        print(f"Received content of length: {content}")
         debug_info = api_response.get("debug_info", {})
 
-        # Log debug information
+        print(f"Received content length: {len(content) if content else 'None'}")
         print(f"API Stats: {debug_info}")
 
         if not content:
-            error_result = {"error": "Gemini API returned empty content"}
-            return error_result
+            return {
+                "success": False,
+                "error": "Gemini API returned empty content",
+                "debug": {
+                    "cache_hit": False,
+                    "api_debug": debug_info
+                }
+            }
 
-        # Try to parse JSON from the response
         try:
-            # First try to extract JSON from code blocks (like your Node.js code)
-            import re
             json_match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', content)
             if json_match:
                 print("Found JSON in code block format")
                 result = json.loads(json_match.group(1))
+                parse_method = "code_block"
             else:
                 print("Attempting to parse entire response as JSON")
                 result = json.loads(content)
+                parse_method = "direct_parse"
 
-            # Cache successful result
             _set_cache(cache_key, result)
-            return result
+            return {
+                "success": True,
+                "data": result,
+                "debug": {
+                    "cache_hit": False,
+                    "parse_method": parse_method,
+                    "api_debug": debug_info
+                }
+            }
 
         except json.JSONDecodeError as e:
             print(f"JSON Parse Error: {str(e)}")
-            print(f"Content that failed to parse: {content[:500]}...")
-            error_result = {"error": f"Failed to parse JSON response: {str(e)}"}
-            # Don't cache JSON parsing errors
-            return error_result
+            return {
+                "success": False,
+                "error": f"Failed to parse JSON response: {str(e)}",
+                "debug": {
+                    "cache_hit": False,
+                    "parse_error": str(e),
+                    "content_snippet": content[:500],
+                    "api_debug": debug_info
+                }
+            }
 
     except Exception as e:
         print(f"Gemini API Exception: {str(e)}")
@@ -1927,30 +2010,79 @@ def transform_text_to_resume_data_cached(raw_text: str) -> dict:
             "success": False,
             "error": f"Gemini API error: {str(e)}",
             "error_type": type(e).__name__,
-            "debug": {"cache_hit": False}
+            "debug": {
+                "cache_hit": False,
+                "exception": str(e)
+            }
         }
+    
 
 def parse_resume_cached(filename: str, content: bytes) -> dict:
     """Main parsing function with prompt caching - enhanced version"""
-    # Check for complete cached result first
-    file_hash = _get_file_hash(content)
-    cache_key = f"full_parse_cached:{file_hash}"
+    # Prepare debug info collector
+    debug = {
+        "stage": "init",
+        "cache_hit": False,
+        "file_hash": None,
+        "filename": filename
+    }
 
-    cached_result = _get_from_cache(cache_key)
-    if cached_result is not None:
-        print("Using cached complete parsing result")
-        return cached_result
+    try:
+        # Check for complete cached result first
+        file_hash = _get_file_hash(content)
+        cache_key = f"full_parse_cached:{file_hash}"
+        debug["file_hash"] = file_hash
 
-    # Process text extraction (with its own caching)
-    if filename == 'resume.txt':
-        raw_text = content.decode('utf-8') if isinstance(content, bytes) else content
-    else:
-        raw_text = extract_text_from_resume(filename, content)
-    
-    # Use cached API call for structured data transformation
-    structured_data = transform_text_to_resume_data_cached(raw_text)
+        cached_result = _get_from_cache(cache_key)
+        if cached_result is not None:
+            print("Using cached complete parsing result")
+            debug["cache_hit"] = True
+            return {
+                "success": True,
+                "data": cached_result.get("data"),
+                "debug": {
+                    "parse_resume_cached": debug,
+                    "transform_text_to_resume_data_cached": cached_result.get("debug")
+                }
+            }
 
-    # Cache the complete result
-    _set_cache(cache_key, structured_data)
-    return structured_data
+        # Process text extraction (with its own caching)
+        debug["stage"] = "text_extraction"
+        if filename == 'resume.txt':
+            raw_text = content.decode('utf-8') if isinstance(content, bytes) else content
+            debug["extraction_method"] = "plain_text"
+        else:
+            raw_text = extract_text_from_resume(filename, content)
+            debug["extraction_method"] = "extract_text_from_resume"
+        
+        debug["raw_text_length"] = len(raw_text)
+
+        # Use cached API call for structured data transformation
+        debug["stage"] = "gemini_transform"
+        structured_data = transform_text_to_resume_data_cached(raw_text)
+
+        # Cache the complete result
+        _set_cache(cache_key, structured_data)
+
+        return {
+            "success": structured_data.get("success", False),
+            "data": structured_data.get("data"),
+            "error": structured_data.get("error"),
+            "error_type": structured_data.get("error_type"),
+            "debug": {
+                "parse_resume_cached": debug,
+                "transform_text_to_resume_data_cached": structured_data.get("debug")
+            }
+        }
+
+    except Exception as e:
+        debug["exception"] = str(e)
+        return {
+            "success": False,
+            "error": f"Parsing failed: {str(e)}",
+            "error_type": type(e).__name__,
+            "debug": {
+                "parse_resume_cached": debug
+            }
+        }
 
