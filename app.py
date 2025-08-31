@@ -9,6 +9,7 @@ from utils import parse_resume
 from utils import parse_resume_temp
 from utils import parse_resume_cached, init_prompt_cache
 import time
+import base64
 
 # Load environment variables (for OPENAI_API_KEY)
 load_dotenv()
@@ -378,3 +379,129 @@ async def refresh_cache():
                 "details": str(e)
             }
         )
+    
+
+
+# workersssssss================
+import uuid
+from queue_service import enqueue_job
+from table_service import save_job_queued
+from blob_service import put_json, input_container
+from fastapi import FastAPI, Request, HTTPException
+from azure.data.tables import TableServiceClient
+from azure.storage.blob import BlobServiceClient
+import os, json, asyncio, time
+
+@app.post("/worker/parse-resume")
+async def worker_parse_resume(
+    request: Request,
+    fileType: str = Form(...),          # "file" or "text"
+    file: Optional[UploadFile] = File(None),  
+    text: Optional[str] = Form(None)  
+):
+    # --- Same auth & user checks as your other endpoints ---
+    origin = request.headers.get("origin")
+    if not origin or origin not in get_cors_origins():
+        raise HTTPException(status_code=403, detail="Origin not allowed")
+
+    auth_header = request.headers.get("authorization")
+    if not auth_header:
+        raise HTTPException(status_code=400, detail="Authorization header missing")
+    try:
+        token = auth_header.split(" ")[1]
+    except IndexError:
+        raise HTTPException(status_code=400, detail="Bearer token missing")
+    decoded_token = await verify_token(token)
+    user_id = decoded_token.get("userId")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Invalid token payload")
+    user = await find_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=401, detail="User does not exist")
+
+    # --- Create jobId ---
+    job_id = str(uuid.uuid4())
+    blob_name = None
+
+    # --- Store input into Blob storage ---
+    if fileType == "file":
+        if not file:
+            raise HTTPException(status_code=400, detail="File not provided")
+        content = await file.read()
+        encoded_data = base64.b64encode(content).decode("utf-8")
+
+        blob_name = f"{job_id}_{file.filename}.json"
+        put_json(input_container, blob_name, {
+            "filename": file.filename,
+            "data_base64": encoded_data
+        })
+
+    elif fileType == "text":
+        if not text or not text.strip():
+            raise HTTPException(status_code=400, detail="Text not provided")
+        blob_name = f"{job_id}_text.json"
+        put_json(input_container, blob_name, {"filename": "resume.txt", "data": text})
+
+    else:
+        raise HTTPException(status_code=400, detail="Invalid fileType")
+
+    # --- Enqueue job ---
+    enqueue_job(job_id, user_id, filename=blob_name)
+
+    save_job_queued(job_id, user_id)
+
+    return {"jobId": job_id, "status": "queued"}
+
+
+# Azure connections
+connection_string = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
+table_name = os.getenv("TABLE_NAME")
+output_container = os.getenv("OUTPUT_CONTAINER")
+input_container = os.getenv("INPUT_CONTAINER")
+
+table_service = TableServiceClient.from_connection_string(conn_str=connection_string)
+table_client = table_service.get_table_client(table_name=table_name)
+
+blob_service = BlobServiceClient.from_connection_string(conn_str=connection_string)
+input_container_client = blob_service.get_container_client(input_container)
+output_container_client = blob_service.get_container_client(output_container)
+
+# ------------------------
+# Fetch worker result
+# ------------------------
+@app.get("/worker/parse-resume/results/{job_id}")
+async def get_analysis_worker_result(job_id: str):
+    start_time = time.time()
+    try:
+        # Fetch job entity
+        try:
+            entity = table_client.get_entity(partition_key="jobs", row_key=job_id)
+        except Exception:
+            raise HTTPException(status_code=404, detail="Job not found")
+
+        if entity.get("status") == "done":
+            # Fetch result JSON from blob
+            result_blob_path = entity.get("resultBlobPath")
+            if not result_blob_path:
+                raise HTTPException(status_code=500, detail="Result blob path missing")
+
+            blob_name = result_blob_path.replace(f"{output_container}/", "")
+            blob_client = output_container_client.get_blob_client(blob_name)
+
+            stream = await asyncio.to_thread(blob_client.download_blob)
+            blob_data = await asyncio.to_thread(stream.readall)
+            result_json = json.loads(blob_data)
+
+            return {
+                "resumeData": result_json["data"],
+                "debug": result_json.get("debug", {}),
+            }
+
+        # Still queued / processing / error
+        return {
+            "status": entity.get("status"),
+            "error": entity.get("error", None),
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
