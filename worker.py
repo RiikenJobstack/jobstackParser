@@ -7,7 +7,6 @@ import base64
 
 def process_job(job):
     job_data = json.loads(job.content)
-    print(job_data,"<-- job data")
     job_id = job_data["jobId"]
     user_id = job_data.get("userId")
     blob_name = job_data.get("filename")
