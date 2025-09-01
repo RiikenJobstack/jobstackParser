@@ -625,10 +625,7 @@ Return only valid JSON.
     try:
         # Use direct API call (same as your Node.js code)
         print("Calling Gemini API directly...")
-        input_tokens = count_tokens(prompt, "gemini-2.5-flash-lite")
         content = call_gemini_api_direct(prompt)
-        output_tokens = count_tokens(content, "gemini-2.5-flash-lite")
-        total_cost = calculate_total_cost(input_tokens, output_tokens, "gemini-2.5-flash-lite")
         # Debug: Log the response content for troubleshooting
         print(f"Gemini API Response Length: {len(content)}")
         print(f"Gemini API Response Preview: {content[:200]}...")
