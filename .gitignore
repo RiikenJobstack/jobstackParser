@@ -63,3 +63,5 @@ __pypdfium2_cache__/
 .mypy_cache/
 .dmypy.json
 dmypy.json
+
+credentials.py

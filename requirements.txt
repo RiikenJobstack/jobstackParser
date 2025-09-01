@@ -15,3 +15,8 @@ motor
 pymongo
 PyJWT
 cryptography
+
+# --- Azure SDKs for worker + caching ---
+azure-storage-queue>12.0.0
+azure-data-tables>12.0.0
+azure-storage-blob>12.0.0
