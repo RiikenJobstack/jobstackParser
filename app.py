@@ -126,7 +126,8 @@ async def upload_resume(request: Request, file: UploadFile = File(...)):
     parsed_data = parse_resume(file.filename, content)
     
     return {
-        "resumeData": parsed_data,
+        "resumeData": parsed_data['structured_data'],
+        "debug": parsed_data['debug'],
         "userId": user.get("_id") if isinstance(user, dict) else user.id
     }
 
