@@ -15,8 +15,40 @@ import base64
 load_dotenv()
 resume_cache_id = None
 resume_cache_expiry = None
+import time
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Track app startup time
+app_start_time = time.time()
+logger.info("=== APP STARTUP BEGINNING ===")
+
+# Add this AFTER all imports but BEFORE app = FastAPI():
+logger.info(f"All imports completed in {time.time() - app_start_time:.2f} seconds")
+
+# Add this AFTER app = FastAPI():
+logger.info(f"FastAPI app created in {time.time() - app_start_time:.2f} seconds")
+
+# Add this at the very end of app.py:
+logger.info(f"=== APP STARTUP COMPLETE in {time.time() - app_start_time:.2f} seconds ===")
+
+# 5. ADD THIS ENDPOINT TO app.py TO CHECK OCR STATUS:
+
 app = FastAPI()
 # CORS configuration
+
+@app.get("/debug/ocr-status")
+async def get_ocr_status():
+    """Debug endpoint to check OCR initialization status"""
+    from utils import _ocr_reader, _ocr_init_time
+    return {
+        "ocr_initialized": _ocr_reader is not None,
+        "initialization_time": _ocr_init_time,
+        "memory_usage": "high" if _ocr_reader else "low"
+    }
 
 def get_cors_origins():
     NODE_ENV = os.getenv("NODE_ENV", "development")

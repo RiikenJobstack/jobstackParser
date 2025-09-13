@@ -170,13 +170,40 @@ def _set_cache(key: str, value: Any):
     _cache[key] = value
 
 # Cache the expensive OCR reader initialization
-@lru_cache(maxsize=1)
-def _get_ocr_reader():
-    import easyocr
-    return easyocr.Reader(['en'], gpu=False)
+# @lru_cache(maxsize=1)
+# def _get_ocr_reader():
+#     import easyocr
+#     return easyocr.Reader(['en'], gpu=False)
 
-# Get cached reader instance
-reader = _get_ocr_reader()
+# # Get cached reader instance
+# reader = _get_ocr_reader()
+
+import time
+import logging
+
+# Set up logging for timing
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Global OCR reader variable
+_ocr_reader = None
+_ocr_init_time = None
+
+def _get_ocr_reader():
+    """Lazy-load OCR reader only when needed"""
+    global _ocr_reader, _ocr_init_time
+    if _ocr_reader is None:
+        start_time = time.time()
+        logger.info("Starting EasyOCR reader initialization...")
+        
+        import easyocr
+        _ocr_reader = easyocr.Reader(['en'], gpu=False)
+        
+        _ocr_init_time = time.time() - start_time
+        logger.info(f"EasyOCR reader initialized in {_ocr_init_time:.2f} seconds")
+    else:
+        logger.info("Using already initialized EasyOCR reader")
+    return _ocr_reader
 
 def extract_text_from_resume(filename: str, content: bytes) -> str:
     """Extract text with caching - same interface as original"""
@@ -239,7 +266,12 @@ def extract_text_from_pdf(content: bytes) -> str:
 
 
 def extract_text_from_pdf_with_ocr(content: bytes) -> str:
-    """OCR extraction for PDFs - same as original but using cached reader"""
+    """OCR extraction for PDFs - now lazy loaded"""
+    start_time = time.time()
+    logger.info("Starting PDF OCR extraction")
+    
+    reader = _get_ocr_reader()  # Only loads when OCR is actually needed
+    
     doc = fitz.open(stream=content, filetype="pdf")
     text = ""
     for page in doc:
@@ -249,6 +281,9 @@ def extract_text_from_pdf_with_ocr(content: bytes) -> str:
         img_np = np.array(img)
         result = reader.readtext(img_np, detail=0)
         text += "\n".join(result) + "\n"
+    
+    total_time = time.time() - start_time
+    logger.info(f"PDF OCR extraction completed in {total_time:.2f} seconds")
     return text
 
 def extract_text_from_docx(content: bytes) -> str:
@@ -363,16 +398,22 @@ def extract_text_from_docx_simple(content: bytes) -> str:
     return "\n".join([text for text in full_text if text.strip()])
 
 def extract_text_from_image(content: bytes) -> str:
-    """Image OCR with caching - same interface as original"""
+    """Image OCR with caching - now lazy loaded"""
+    start_time = time.time()
+    logger.info("Starting image OCR extraction")
+    
     file_hash = _get_file_hash(content)
     cache_key = f"image_ocr:{file_hash}"
 
     # Check cache first
     cached_text = _get_from_cache(cache_key)
     if cached_text is not None:
+        cache_time = time.time() - start_time
+        logger.info(f"Image OCR cache hit in {cache_time:.2f} seconds")
         return cached_text
 
-    # Perform OCR using cached reader
+    # Perform OCR using lazy-loaded reader
+    reader = _get_ocr_reader()  # Only loads when needed
     image = Image.open(io.BytesIO(content)).convert("RGB")
     import numpy as np
     img_np = np.array(image)
@@ -381,7 +422,11 @@ def extract_text_from_image(content: bytes) -> str:
 
     # Cache the result
     _set_cache(cache_key, text)
+    
+    total_time = time.time() - start_time
+    logger.info(f"Image OCR extraction completed in {total_time:.2f} seconds")
     return text
+
 
 def extract_text_from_txt(content: bytes) -> str:
     """Extract text from a TXT file (UTF-8 with fallback)"""
