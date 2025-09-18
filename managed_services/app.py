@@ -2,15 +2,16 @@ import asyncio
 import time
 import os
 from contextlib import asynccontextmanager
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 import uvicorn
 
 from src.parsers.resume_processor import process_resume
+from src.auth.auth_middleware import require_authentication, optional_authentication
 
 
 # Load environment variables
@@ -26,7 +27,7 @@ async def lifespan(app: FastAPI):
     print("📊 Production-ready for 100 concurrent users")
 
     # Verify environment variables
-    required_vars = ['GEMINI_API_KEY', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY']
+    required_vars = ['GEMINI_API_KEY', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'JWT_SECRET_KEY']
     missing_vars = [var for var in required_vars if not os.getenv(var)]
 
     if missing_vars:
@@ -71,7 +72,10 @@ request_stats = {
 
 
 @app.post("/parse-resume")
-async def parse_resume_endpoint(file: UploadFile = File(...)) -> JSONResponse:
+async def parse_resume_endpoint(
+    file: UploadFile = File(...),
+    auth_user: Optional[Dict[str, Any]] = Depends(require_authentication)
+) -> JSONResponse:
     """
     Single endpoint for resume parsing
     Supports: PDF, DOC, DOCX, PNG, JPG, JPEG
@@ -103,10 +107,16 @@ async def parse_resume_endpoint(file: UploadFile = File(...)) -> JSONResponse:
                 detail=f"Unsupported file type: {file_ext}. Allowed: {', '.join(allowed_extensions)}"
             )
 
-        print(f"📄 Processing: {file.filename} ({len(content)} bytes)")
+        # Log authenticated user
+        user_id = auth_user.get("userId") if auth_user else "anonymous"
+        print(f"📄 Processing: {file.filename} ({len(content)} bytes) for user: {user_id}")
 
         # Process the resume
         result = await process_resume(content, file.filename)
+
+        # Add user context to response metadata
+        if "metadata" in result:
+            result["metadata"]["user_id"] = user_id
 
         # Update stats
         processing_time = time.time() - request_start
@@ -175,6 +185,7 @@ async def health_check() -> Dict[str, Any]:
         "environment": {
             "gemini_configured": bool(os.getenv('GEMINI_API_KEY')),
             "aws_configured": bool(os.getenv('AWS_ACCESS_KEY_ID')),
+            "auth_configured": bool(os.getenv('JWT_SECRET_KEY')),
         }
     }
 
@@ -195,6 +206,15 @@ async def get_stats() -> Dict[str, Any]:
     }
 
 
+@app.post("/parse-resume-test")
+async def parse_resume_test_endpoint(file: UploadFile = File(...)) -> JSONResponse:
+    """
+    Test endpoint for resume parsing without authentication
+    Use this for testing and development only
+    """
+    return await parse_resume_endpoint(file, auth_user=None)
+
+
 @app.get("/")
 async def root():
     """
@@ -204,8 +224,14 @@ async def root():
         "message": "Resume Parser API",
         "version": "1.0.0",
         "status": "running",
+        "authentication": {
+            "required": True,
+            "type": "JWT Bearer Token",
+            "header": "Authorization: Bearer <token>"
+        },
         "endpoints": {
-            "parse": "/parse-resume",
+            "parse": "/parse-resume (requires auth)",
+            "parse_test": "/parse-resume-test (no auth, for testing)",
             "health": "/health",
             "stats": "/stats"
         },
