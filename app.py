@@ -247,7 +247,7 @@ async def upload_resume(
         raise HTTPException(status_code=400, detail="Invalid fileType. Must be 'file' or 'text'.")
 
     return {
-        "resumeData": parsed_result["structured_data"]["data"],  # structured JSON
+        "resumeData": parsed_result["structured_data"],  # structured JSON
         "debug": parsed_result["structured_data"]["debug"],                 # debug info
         "userId": user.get("_id") if isinstance(user, dict) else user.id
     }
