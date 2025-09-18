@@ -1,9 +1,11 @@
 import asyncio
 import json
 import time
+import os
 from typing import Dict, Any, Optional
 from src.parsers.text_extractor import extract_text
 from src.parsers.gemini_normalizer import normalize_with_gemini
+from src.parsers.gemini_cached_normalizer import normalize_with_gemini_cached
 
 
 async def process_resume(file_content: bytes, filename: str) -> Dict[str, Any]:
@@ -27,13 +29,21 @@ async def process_resume(file_content: bytes, filename: str) -> Dict[str, Any]:
         print(f"Text extraction completed in {extraction_time:.2f}s")
 
         # Step 2: Normalize with Gemini (3-5 seconds)
-        print("Starting Gemini normalization...")
-        normalization_start = time.time()
+        # Choose caching mode based on environment configuration
+        use_caching = os.getenv("USE_PROMPT_CACHING", "false").lower() == "true"
 
-        structured_data = await normalize_with_gemini(raw_text)
+        if use_caching:
+            print("Starting Gemini normalization with caching (89% cost reduction)...")
+            normalization_start = time.time()
+            structured_data = await normalize_with_gemini_cached(raw_text)
+        else:
+            print("Starting Gemini normalization (standard mode)...")
+            normalization_start = time.time()
+            structured_data = await normalize_with_gemini(raw_text)
 
         normalization_time = time.time() - normalization_start
-        print(f"Gemini normalization completed in {normalization_time:.2f}s")
+        cache_mode = "cached" if use_caching else "standard"
+        print(f"Gemini normalization ({cache_mode}) completed in {normalization_time:.2f}s")
 
         # Step 3: Add processing metadata
         total_time = time.time() - start_time

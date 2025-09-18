@@ -186,6 +186,7 @@ async def health_check() -> Dict[str, Any]:
             "gemini_configured": bool(os.getenv('GEMINI_API_KEY')),
             "aws_configured": bool(os.getenv('AWS_ACCESS_KEY_ID')),
             "auth_configured": bool(os.getenv('JWT_SECRET_KEY')),
+            "caching_enabled": os.getenv('USE_PROMPT_CACHING', 'false').lower() == 'true'
         }
     }
 
