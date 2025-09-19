@@ -321,6 +321,19 @@ def create_fallback_structure_cached(raw_text: str, error_message: str) -> Dict[
                     "error": error_message,
                     "fallback_used": True
                 },
+                "processing_status": {
+                    "status": "failed",
+                    "error_type": "caching_failure",
+                    "can_retry": True,
+                    "retry_suggestions": [
+                        "Try uploading again with ?fresh=true parameter",
+                        "The AI processing failed, but basic info was extracted",
+                        "Contact support if this persists"
+                    ],
+                    "cached": False,
+                    "retry_endpoint": "Same endpoint with ?fresh=true",
+                    "fallback_extraction": True
+                },
                 "atsKeywords": {
                     "technical": [],
                     "soft": [],
